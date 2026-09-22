@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flashbang Camera FX — OBS & Discord Ready</title>
+  <link rel="stylesheet" href="/src/styles.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💥</text></svg>">
+</head>
+<body>
+  <div id="app">
+    <!-- Hidden source video stream -->
+    <video id="webcam-video" playsinline autoplay muted></video>
+
+    <!-- Main Rendering Canvas -->
+    <canvas id="viewport-canvas"></canvas>
+
+    <!-- HUD Overlay -->
+    <div class="hud-container">
+      <!-- Top Navigation -->
+      <header class="top-bar">
+        <div class="brand-badge">
+          <span class="brand-icon">💥</span>
+          <span class="brand-title">FLASHBANG FX</span>
+          <div class="brand-status">
+            <span class="status-dot"></span>
+            <span id="status-text">TRACKING READY</span>
+          </div>
+        </div>
+
+        <div class="top-actions">
+          <button id="btn-mirror" class="btn-pill active" title="Toggle Camera Mirror">
+            <span>🪞 Mirror</span>
+          </button>
+          <button id="btn-skeleton" class="btn-pill active" title="Toggle Hand Skeleton">
+            <span>🖐️ Skeleton</span>
+          </button>
+          <button id="btn-clean" class="btn-pill" title="Toggle OBS Clean Mode (Key: C)">
+            <span>🎥 OBS Mode (C)</span>
+          </button>
+          <button id="btn-fullscreen" class="btn-pill" title="Toggle Fullscreen (Key: F)">
+            <span>⛶ Fullscreen</span>
+          </button>
+          <button id="btn-settings" class="btn-pill" title="Settings & Setup Guide">
+            <span>⚙️ Settings</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Bottom Controls -->
+      <footer class="bottom-deck">
+        <div class="control-card">
+          <!-- Gesture Selector -->
+          <div class="control-group">
+            <label class="control-label" for="gesture-select">TRIGGER GESTURE</label>
+            <select id="gesture-select" class="select-styled">
+              <option value="peace" selected>✌️ Peace Sign (Victory)</option>
+              <option value="throw">✊💨 Tactical Throw</option>
+              <option value="pinch">👌 Pin Pull</option>
+              <option value="palm">🖐️ Open Palm Stop</option>
+              <option value="any">⚡ Any Gesture</option>
+            </select>
+          </div>
+
+          <!-- Fire Button -->
+          <button id="btn-detonate" class="btn-fire" title="Trigger Flashbang (Key: Space or G)">
+            <span>💥 DETONATE</span>
+            <kbd style="font-size: 10px; background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px;">SPACE</kbd>
+          </button>
+        </div>
+      </footer>
+    </div>
+
+    <!-- Clean Mode Reminder (Visible only in Clean Mode) -->
+    <div class="clean-mode-hint">Press <strong>C</strong> to exit OBS Clean Mode</div>
+
+    <!-- Settings Modal & OBS Virtual Camera Guide -->
+    <div id="settings-modal" class="modal-backdrop">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h3 class="modal-title">⚙️ Flashbang Settings</h3>
+          <button id="btn-modal-close" class="btn-close">&times;</button>
+        </div>
+
+        <div class="modal-section">
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-name">Camera Source</span>
+              <span class="setting-desc">Select webcam input</span>
+            </div>
+            <select id="camera-select" class="select-styled" style="max-width: 200px;"></select>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-name">Flashbang Duration</span>
+              <span class="setting-desc" id="duration-label">4.5 seconds</span>
+            </div>
+            <input type="range" id="duration-slider" min="2" max="8" step="0.5" value="4.5">
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-name">Blast & Tinnitus Volume</span>
+              <span class="setting-desc" id="volume-label">85%</span>
+            </div>
+            <input type="range" id="volume-slider" min="0" max="1" step="0.05" value="0.85">
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-name">CS:GO Voice Call</span>
+              <span class="setting-desc">Play "Throwing flashbang!" voice line</span>
+            </div>
+            <input type="checkbox" id="voice-toggle" checked>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-name">Fuse Timing</span>
+              <span class="setting-desc">Delay between call and blast</span>
+            </div>
+            <select id="fuse-select" class="select-styled" style="max-width: 180px;">
+              <option value="1500" selected>1.5s (Authentic Toss)</option>
+              <option value="0">Instant Detonation</option>
+            </select>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <span class="setting-name">Mute Sound</span>
+              <span class="setting-desc">Mute all explosion and voice audio</span>
+            </div>
+            <input type="checkbox" id="mute-toggle">
+          </div>
+        </div>
+
+        <!-- OBS to Discord & Zoom Guide -->
+        <div class="guide-card">
+          <strong style="color: var(--accent-cyan); display: block; margin-bottom: 8px;">
+            🎥 How to use in Discord & Zoom:
+          </strong>
+          <div class="guide-step">
+            <span class="step-num">1</span>
+            <span>Open <strong>OBS Studio</strong> on your Mac.</span>
+          </div>
+          <div class="guide-step">
+            <span class="step-num">2</span>
+            <span>Under Sources, click <strong>+</strong> and choose <strong>Window Capture</strong> (select this browser tab).</span>
+          </div>
+          <div class="guide-step">
+            <span class="step-num">3</span>
+            <span>Click <strong>"C"</strong> in this app to hide all UI buttons (OBS Clean Mode).</span>
+          </div>
+          <div class="guide-step">
+            <span class="step-num">4</span>
+            <span>In OBS, click <strong>"Start Virtual Camera"</strong>.</span>
+          </div>
+          <div class="guide-step">
+            <span class="step-num">5</span>
+            <span>In <strong>Discord or Zoom</strong>, select <strong>"OBS Virtual Camera"</strong> as your webcam!</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
