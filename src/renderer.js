@@ -98,7 +98,7 @@ export class FlashbangRenderer {
     const isBlind = this.isFlashing && elapsed < this.flashDuration;
 
     if (this.showLandmarks && landmarks && landmarks.length > 0 && (!isBlind || elapsed > 2500)) {
-      this.drawHandLandmarks(landmarks, width, height);
+      this.drawHandLandmarks(landmarks, width, height, gestureInfo ? gestureInfo.hands : null);
     }
 
     // 4. Render Flashbang Effects (Pure Whiteout + Retinal Burn + Recovery Vignette)
@@ -108,7 +108,7 @@ export class FlashbangRenderer {
       this.isFlashing = false;
     }
 
-    // 5. Draw Gesture Status Badge (when not blinded)
+    // 5. Draw Gesture Status Badges (when not blinded)
     if (!isBlind && gestureInfo) {
       this.drawGestureHUD(gestureInfo, width, height);
     }
@@ -165,9 +165,9 @@ export class FlashbangRenderer {
   }
 
   /**
-   * Draw tactical hand skeleton on canvas
+   * Draw tactical hand skeleton on canvas with multi-hand identification
    */
-  drawHandLandmarks(landmarksArray, width, height) {
+  drawHandLandmarks(landmarksArray, width, height, handsData = null) {
     this.ctx.save();
     const connections = [
       [0, 1], [1, 2], [2, 3], [3, 4],       // Thumb
@@ -178,10 +178,22 @@ export class FlashbangRenderer {
       [0, 17]                               // Palm base
     ];
 
-    for (const hand of landmarksArray) {
+    for (let hIdx = 0; hIdx < landmarksArray.length; hIdx++) {
+      const hand = landmarksArray[hIdx];
+      const handMeta = (handsData && handsData[hIdx]) ? handsData[hIdx] : null;
+      const isTriggering = handMeta && handMeta.isTriggerCandidate;
+
+      // Color coding per hand & state
+      const boneColor = isTriggering
+        ? 'rgba(0, 255, 136, 0.85)'
+        : (hIdx === 0 ? 'rgba(0, 240, 255, 0.7)' : 'rgba(168, 85, 247, 0.7)');
+
+      const jointColor = isTriggering ? '#00FF88' : (hIdx === 0 ? '#00E5FF' : '#C084FC');
+      const tipColor = isTriggering ? '#FFFFFF' : '#00FF88';
+
       // Draw bones
-      this.ctx.lineWidth = 2.5;
-      this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.65)';
+      this.ctx.lineWidth = isTriggering ? 3.5 : 2.5;
+      this.ctx.strokeStyle = boneColor;
       this.ctx.beginPath();
       for (const [startIdx, endIdx] of connections) {
         const start = hand[startIdx];
@@ -202,9 +214,9 @@ export class FlashbangRenderer {
         const py = pt.y * height;
 
         const isTip = [4, 8, 12, 16, 20].includes(i);
-        this.ctx.fillStyle = isTip ? '#00FF88' : '#00E5FF';
+        this.ctx.fillStyle = isTip ? tipColor : jointColor;
         this.ctx.beginPath();
-        this.ctx.arc(px, py, isTip ? 5 : 3.5, 0, Math.PI * 2);
+        this.ctx.arc(px, py, isTip ? (isTriggering ? 6 : 5) : 3.5, 0, Math.PI * 2);
         this.ctx.fill();
       }
     }
@@ -212,40 +224,79 @@ export class FlashbangRenderer {
   }
 
   /**
-   * Draw subtle gesture detector HUD badge
+   * Draw gesture detector HUD badge with multi-hand representation
    */
   drawGestureHUD(info, width, height) {
-    if (!info.activeGesture) return;
+    const hands = info.hands || [];
+    if (hands.length === 0 && !info.activeGesture) return;
 
     this.ctx.save();
-    const text = `${info.gestureIcon} ${info.gestureName.toUpperCase()}`;
-    this.ctx.font = '600 14px system-ui, -apple-system, sans-serif';
-    const textWidth = this.ctx.measureText(text).width;
+    this.ctx.font = '600 13px system-ui, -apple-system, sans-serif';
+
     const padding = 12;
-    const boxW = textWidth + padding * 2 + 10;
-    const boxH = 32;
-    const x = 20;
-    const y = height - boxH - 20;
+    const boxH = 34;
+    const startX = 24;
+    let currentY = height - boxH - 24;
 
-    // Glass pill background
-    this.ctx.fillStyle = 'rgba(10, 14, 20, 0.75)';
-    this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
-    this.ctx.lineWidth = 1;
-    this.ctx.beginPath();
-    this.ctx.roundRect(x, y, boxW, boxH, 8);
-    this.ctx.fill();
-    this.ctx.stroke();
+    // If hands list is populated, draw badges for each tracked hand
+    if (hands.length > 0) {
+      for (let i = hands.length - 1; i >= 0; i--) {
+        const hand = hands[i];
+        const label = hand.label ? hand.label.toUpperCase() : `HAND ${i + 1}`;
+        const scoreStr = hand.score ? ` (${Math.round(hand.score * 100)}%)` : '';
+        const gestureText = hand.gesture ? `${hand.icon} ${hand.name.toUpperCase()}${scoreStr}` : 'TRACKING...';
+        const displayText = `${label}: ${gestureText}`;
 
-    // Pulse dot
-    this.ctx.fillStyle = '#00FF88';
-    this.ctx.beginPath();
-    this.ctx.arc(x + 14, y + boxH / 2, 4, 0, Math.PI * 2);
-    this.ctx.fill();
+        const textWidth = this.ctx.measureText(displayText).width;
+        const boxW = textWidth + padding * 2 + 14;
 
-    // Text
-    this.ctx.fillStyle = '#FFFFFF';
-    this.ctx.textBaseline = 'middle';
-    this.ctx.fillText(text, x + 26, y + boxH / 2);
+        // Background styling
+        const isTrigger = hand.isTriggerCandidate;
+        this.ctx.fillStyle = isTrigger ? 'rgba(0, 40, 25, 0.85)' : 'rgba(10, 14, 20, 0.8)';
+        this.ctx.strokeStyle = isTrigger ? 'rgba(0, 255, 136, 0.85)' : 'rgba(0, 240, 255, 0.35)';
+        this.ctx.lineWidth = isTrigger ? 1.5 : 1;
+
+        this.ctx.beginPath();
+        this.ctx.roundRect(startX, currentY, boxW, boxH, 8);
+        this.ctx.fill();
+        this.ctx.stroke();
+
+        // Status indicator dot
+        this.ctx.fillStyle = isTrigger ? '#00FF88' : (hand.gesture ? '#00E5FF' : '#8A99AD');
+        this.ctx.beginPath();
+        this.ctx.arc(startX + 14, currentY + boxH / 2, 4, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Badge Text
+        this.ctx.fillStyle = isTrigger ? '#00FF88' : '#FFFFFF';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(displayText, startX + 26, currentY + boxH / 2);
+
+        currentY -= (boxH + 8);
+      }
+    } else if (info.activeGesture) {
+      // Fallback single badge
+      const text = `${info.gestureIcon} ${info.gestureName.toUpperCase()}`;
+      const textWidth = this.ctx.measureText(text).width;
+      const boxW = textWidth + padding * 2 + 14;
+
+      this.ctx.fillStyle = 'rgba(10, 14, 20, 0.8)';
+      this.ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+      this.ctx.lineWidth = 1;
+      this.ctx.beginPath();
+      this.ctx.roundRect(startX, currentY, boxW, boxH, 8);
+      this.ctx.fill();
+      this.ctx.stroke();
+
+      this.ctx.fillStyle = '#00FF88';
+      this.ctx.beginPath();
+      this.ctx.arc(startX + 14, currentY + boxH / 2, 4, 0, Math.PI * 2);
+      this.ctx.fill();
+
+      this.ctx.fillStyle = '#FFFFFF';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText(text, startX + 26, currentY + boxH / 2);
+    }
 
     this.ctx.restore();
   }

@@ -79,7 +79,8 @@ function triggerFlashbang(source = 'manual') {
 
 // Hook up gesture trigger callback
 tracker.onTrigger = (event) => {
-  triggerFlashbang(`gesture: ${event.name} (${event.icon})`);
+  const sourceLabel = event.handLabel ? `${event.handLabel} ${event.icon} ${event.name}` : `${event.icon} ${event.name}`;
+  triggerFlashbang(`gesture: ${sourceLabel}`);
 };
 
 /**
@@ -127,11 +128,30 @@ function renderLoop() {
   const timestamp = performance.now();
   const trackingData = tracker.processFrame(videoEl, timestamp);
 
+  // Update top status indicator if not actively detonating
+  if (!isThrowing) {
+    if (trackingData.inCooldown) {
+      statusText.textContent = 'COOLDOWN ACTIVE';
+      statusText.style.color = 'var(--accent-amber)';
+    } else if (trackingData.hands && trackingData.hands.length > 1) {
+      statusText.textContent = `TRACKING (${trackingData.hands.length} HANDS)`;
+      statusText.style.color = 'var(--accent-green)';
+    } else if (trackingData.hands && trackingData.hands.length === 1) {
+      statusText.textContent = 'TRACKING (1 HAND)';
+      statusText.style.color = 'var(--accent-green)';
+    } else {
+      statusText.textContent = 'TRACKING READY';
+      statusText.style.color = 'var(--accent-green)';
+    }
+  }
+
   // Render composite to canvas
   renderer.render(videoEl, trackingData.landmarks, {
     activeGesture: trackingData.activeGesture,
     gestureName: trackingData.gestureName,
-    gestureIcon: trackingData.gestureIcon
+    gestureIcon: trackingData.gestureIcon,
+    hands: trackingData.hands,
+    inCooldown: trackingData.inCooldown
   });
 
   requestAnimationFrame(renderLoop);
